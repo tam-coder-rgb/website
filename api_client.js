@@ -1,0 +1,322 @@
+/**
+ * MOBILE API CLIENT SDK - TRỢ LÝ ĐỌC DYSLEXIA & NGƯỜI GIÀ
+ * Sử dụng để tích hợp vào ứng dụng React Native, Flutter (WebView/Bridge), hoặc Mobile Web/PWA.
+ */
+
+class A11yMobileClient {
+    constructor(baseURL = window.location.origin) {
+        this.baseURL = baseURL.replace(/\/$/, '');
+    }
+
+    /**
+     * Gửi ảnh từ Camera điện thoại lên Server để xử lý toàn bộ quy trình:
+     * PaddleOCR + Vision LLM + Tóm tắt Dyslexia + Tạo âm thanh giọng đọc TTS.
+     * @param {Blob|File} imageFile - File ảnh hoặc Blob từ Camera
+     * @param {boolean} generateAudio - Có tạo file giọng đọc MP3 hay không
+     * @returns {Promise<Object>} Kết quả phân tích và URL file âm thanh
+     */
+    async scanAndAnalyze(imageFile, generateAudio = true) {
+        const formData = new FormData();
+        formData.append('file', imageFile);
+        formData.append('generate_audio', generateAudio);
+
+        const response = await fetch(`${this.baseURL}/api/v1/process/full-pipeline`, {
+            method: 'POST',
+            body: formData,
+        });
+
+        if (!response.ok) {
+            const err = await response.json().catch(() => ({ detail: 'Lỗi không xác định' }));
+            throw new Error(err.detail || `Lỗi máy chủ (${response.status})`);
+        }
+
+        const data = await response.json();
+        
+        // Chuẩn hóa đường dẫn file âm thanh tuyệt đối
+        if (data.audio && data.audio.audio_url) {
+            data.audio.full_audio_url = `${this.baseURL}${data.audio.audio_url}`;
+        }
+
+        return data;
+    }
+
+    /**
+     * Yêu cầu Server đọc một đoạn văn bản bất kỳ thành tiếng
+     * @param {string} text - Văn bản cần đọc
+     * @param {number} speed - Hệ số tốc độ (0.5x - 2.0x, mặc định 1.0)
+     * @returns {string} URL luồng stream âm thanh trực tiếp
+     */
+    getAudioStreamUrl(text, speed = 1.0) {
+        const speedQuery = speed ? `&speed=${speed}` : '';
+        return `${this.baseURL}/api/v1/speech/stream?text=${encodeURIComponent(text)}${speedQuery}`;
+    }
+
+    /**
+     * Tải luồng âm thanh dạng Blob vào RAM điện thoại (In-Memory Blob)
+     * Tự động dùng POST nếu văn bản dài, truyền đúng tốc độ speed
+     * @param {string} text - Văn bản cần đọc
+     * @param {number} speed - Hệ số tốc độ (0.5x - 2.0x, mặc định 1.0)
+     * @returns {Promise<Blob>} Dữ liệu nhị phân âm thanh trong RAM
+     */
+    async fetchAudioStreamBlob(text, speed = 1.0) {
+        if (!text || !text.trim()) {
+            throw new Error("Không có nội dung văn bản để đọc.");
+        }
+
+        let response;
+        if (text.length < 500) {
+            const url = this.getAudioStreamUrl(text, speed);
+            response = await fetch(url);
+        } else {
+            response = await fetch(`${this.baseURL}/api/v1/speech/stream`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ text, speed })
+            });
+        }
+
+        if (!response.ok) {
+            const err = await response.json().catch(() => ({ detail: response.statusText }));
+            throw new Error(err.detail || `Lỗi tải âm thanh: ${response.status}`);
+        }
+        return await response.blob();
+    }
+
+    /**
+     * Gửi ảnh vỏ hộp, vỉ thuốc hoặc đơn thuốc lên Server để nhận diện thuốc:
+     * - Đối chiếu CSDL chuẩn (chính xác)
+     * - Fallback gọi AI kèm cảnh báo tham khảo
+     * - Tạo âm thanh giọng đọc
+     * @param {Blob|File} imageFile - File ảnh từ Camera hoặc thư viện
+     * @param {boolean} generateAudio - Có tạo file âm thanh MP3 hay không
+     * @returns {Promise<Object>} Kết quả nhận diện thuốc và URL âm thanh
+     */
+    async recognizeMedicine(imageFile, generateAudio = true) {
+        const formData = new FormData();
+        formData.append('file', imageFile);
+        formData.append('generate_audio', generateAudio);
+
+        const response = await fetch(`${this.baseURL}/api/v1/medicine/recognize`, {
+            method: 'POST',
+            body: formData,
+        });
+
+        if (!response.ok) {
+            const err = await response.json().catch(() => ({ detail: 'Lỗi không xác định' }));
+            throw new Error(err.detail || `Lỗi máy chủ (${response.status})`);
+        }
+
+        const data = await response.json();
+        if (data.audio && data.audio.audio_url) {
+            data.audio.full_audio_url = `${this.baseURL}${data.audio.audio_url}`;
+        }
+        if (data.warning_audio && data.warning_audio.audio_url) {
+            data.warning_audio.full_audio_url = `${this.baseURL}${data.warning_audio.audio_url}`;
+        }
+        return data;
+    }
+
+    /**
+     * Tra cứu thông tin thuốc từ chuỗi tên thuốc (không cần chụp ảnh)
+     * @param {string} textQuery - Tên thuốc (ví dụ: 'Panadol Cảm Cúm')
+     * @param {boolean} generateAudio - Có tạo âm thanh giọng đọc không
+     */
+    async recognizeMedicineText(textQuery, generateAudio = true) {
+        const response = await fetch(`${this.baseURL}/api/v1/medicine/recognize-text`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                text: textQuery,
+                generate_audio: generateAudio
+            })
+        });
+
+        if (!response.ok) {
+            const err = await response.json().catch(() => ({ detail: 'Lỗi không xác định' }));
+            throw new Error(err.detail || `Lỗi máy chủ (${response.status})`);
+        }
+
+        const data = await response.json();
+        if (data.audio && data.audio.audio_url) {
+            data.audio.full_audio_url = `${this.baseURL}${data.audio.audio_url}`;
+        }
+        if (data.warning_audio && data.warning_audio.audio_url) {
+            data.warning_audio.full_audio_url = `${this.baseURL}${data.warning_audio.audio_url}`;
+        }
+        return data;
+    }
+
+    /**
+     * Lấy danh sách thuốc có sẵn trong Cơ sở dữ liệu CSDL
+     */
+    async listMedicines(q = '') {
+        const url = q ? `${this.baseURL}/api/v1/medicine/list?q=${encodeURIComponent(q)}` : `${this.baseURL}/api/v1/medicine/list`;
+        const response = await fetch(url);
+        if (!response.ok) return { data: [] };
+        return await response.json();
+    }
+
+    /**
+     * Tạo âm thanh giọng đọc từ một đoạn văn bản ngắn bất kỳ
+     * @param {string} text - Văn bản cần đọc
+     * @param {number} speed - Hệ số tốc độ (0.5x - 2.0x, mặc định 1.0)
+     */
+    async synthesizeSpeech(text, speed = 1.0) {
+        const response = await fetch(`${this.baseURL}/api/v1/speech/synthesize`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ text, speed })
+        });
+        if (!response.ok) return null;
+        const data = await response.json();
+        if (data.audio_url) {
+            data.full_audio_url = `${this.baseURL}${data.audio_url}`;
+        }
+        return data;
+    }
+
+    /**
+     * Tóm tắt văn bản bằng AI (Chỉ chạy khi người dùng chủ động bấm Tóm tắt)
+     * @param {string} text - Đoạn văn bản nguyên văn cần tóm tắt
+     * @param {number} speed - Tốc độ đọc
+     */
+    async summarizeText(text, speed = 1.0) {
+        const response = await fetch(`${this.baseURL}/api/v1/text/summarize`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ text, speed })
+        });
+        if (!response.ok) {
+            throw new Error("Không thể tóm tắt văn bản.");
+        }
+        const res = await response.json();
+        return res.data || res;
+    }
+
+    /**
+     * Kiểm tra trạng thái tạo âm thanh giọng đọc ngầm (cho văn bản hoặc tóm tắt)
+     * @param {string} token - Mã doc_token hoặc sum_token
+     */
+    async getDocAudioStatus(token) {
+        if (!token) return { status: 'failed', audio_url: null };
+        try {
+            const response = await fetch(`${this.baseURL}/api/v1/process/audio-status?token=${encodeURIComponent(token)}`);
+            if (!response.ok) return { status: 'generating', audio_url: null };
+            const data = await response.json();
+            if (data.audio_url && !data.audio_url.startsWith('http')) {
+                data.audio_url = `${this.baseURL}${data.audio_url}`;
+            }
+            return data;
+        } catch (e) {
+            return { status: 'generating', audio_url: null };
+        }
+    }
+
+    /**
+     * Lấy thông tin mạng và trạng thái hệ thống
+     */
+    async getSystemInfo() {
+        try {
+            const response = await fetch(`${this.baseURL}/api/v1/system/info`);
+            if (response.ok) return await response.json();
+        } catch (e) {
+            console.log("Không thể lấy system info:", e);
+        }
+        return null;
+    }
+    /**
+     * Gửi ảnh sang endpoint App Inventor (Bước 1):
+     * Tra cứu CSDL chuẩn tức thì, trả về token và trạng thái có cần phân tích AI hay không.
+     * @param {Blob|File} imageFile
+     * @param {number} speed
+     */
+    async recognizeMedicineAppInventor(imageFile, speed = 1.0) {
+        const formData = new FormData();
+        formData.append('file', imageFile);
+
+        const speedQuery = speed ? `?speed=${speed}` : '';
+        const response = await fetch(`${this.baseURL}/api/v1/medicine/app-inventor${speedQuery}`, {
+            method: 'POST',
+            body: formData,
+        });
+
+        if (!response.ok) {
+            const err = await response.json().catch(() => ({ detail: 'Lỗi không xác định' }));
+            throw new Error(err.detail || `Lỗi máy chủ (${response.status})`);
+        }
+
+        const data = await response.json();
+        if (data.audio_url && !data.audio_url.startsWith('http')) {
+            data.audio_url = `${this.baseURL}${data.audio_url}`;
+        }
+        if (data.warning_audio_url && !data.warning_audio_url.startsWith('http')) {
+            data.warning_audio_url = `${this.baseURL}${data.warning_audio_url}`;
+        }
+        return data;
+    }
+
+    /**
+     * Phân tích AI sâu khi người dùng bấm nút [BẤM ĐỂ PHÂN TÍCH AI] (Bước 2):
+     * @param {string} token - Mã token của ảnh đã cache ở Bước 1
+     * @param {number} speed
+     */
+    async analyzeMedicineAI(token, speed = 1.0) {
+        const speedQuery = speed ? `&speed=${speed}` : '';
+        const response = await fetch(`${this.baseURL}/api/v1/medicine/analyze-ai?token=${encodeURIComponent(token)}${speedQuery}`, {
+            method: 'POST'
+        });
+
+        if (!response.ok) {
+            const err = await response.json().catch(() => ({ detail: 'Lỗi phân tích AI' }));
+            throw new Error(err.detail || `Lỗi phân tích AI (${response.status})`);
+        }
+
+        const data = await response.json();
+        if (data.audio_url && !data.audio_url.startsWith('http')) {
+            data.audio_url = `${this.baseURL}${data.audio_url}`;
+        }
+        if (data.warning_audio_url && !data.warning_audio_url.startsWith('http')) {
+            data.warning_audio_url = `${this.baseURL}${data.warning_audio_url}`;
+        }
+        return data;
+    }
+
+    /**
+     * Đọc văn bản tài liệu bằng endpoint App Inventor:
+     * @param {Blob|File} imageFile
+     * @param {number} speed
+     */
+    async processDocumentAppInventor(imageFile, speed = 1.0) {
+        const formData = new FormData();
+        formData.append('file', imageFile);
+
+        const speedQuery = speed ? `?speed=${speed}` : '';
+        const response = await fetch(`${this.baseURL}/api/v1/process/app-inventor${speedQuery}`, {
+            method: 'POST',
+            body: formData
+        });
+
+        if (!response.ok) {
+            let msg = 'Lỗi đọc văn bản';
+            if (response.status === 504 || response.status === 408) {
+                msg = 'Hết thời gian chờ phản hồi (Timeout). Vui lòng thử lại.';
+            } else if (response.status === 502 || response.status === 503) {
+                msg = 'Máy chủ đang bận hoặc đường truyền ngrok bị gián đoạn.';
+            }
+            const err = await response.json().catch(() => ({ detail: msg }));
+            throw new Error(err.detail || `${msg} (${response.status})`);
+        }
+
+        const data = await response.json();
+        if (data.audio_url && !data.audio_url.startsWith('http')) {
+            data.audio_url = `${this.baseURL}${data.audio_url}`;
+        }
+        return data;
+    }
+}
+
+// Xuất module cho cả môi trường CommonJS và Browser
+if (typeof module !== 'undefined' && module.exports) {
+    module.exports = A11yMobileClient;
+}
+
