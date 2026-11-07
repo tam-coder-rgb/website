@@ -45,6 +45,17 @@
         <!-- ==================================================== -->
         <main id="action-screen" class="action-screen">
 
+            <!-- CẢNH BÁO KẾT NỐI SERVER (HIỂN THỊ KHI CHƯA KẾT NỐI ĐƯỢC BACKEND) -->
+            <div id="server-alert-banner" style="display: none; background: #fef2f2; border: 1px solid #f87171; border-radius: 10px; padding: 12px 14px; margin-bottom: 16px; font-size: 0.9rem; color: #991b1b; display: none; align-items: center; justify-content: space-between; gap: 10px;">
+                <div style="display: flex; align-items: center; gap: 8px;">
+                    <span style="font-size: 1.2rem;">⚠️</span>
+                    <span><strong>Chưa kết nối Server:</strong> Vui lòng dán link Cloudflare/VPS để sử dụng AI.</span>
+                </div>
+                <button id="btn-open-server-config" type="button" style="white-space: nowrap; background: #dc2626; color: #fff; border: none; padding: 6px 12px; border-radius: 6px; font-weight: bold; cursor: pointer;">
+                    Cấu hình ngay
+                </button>
+            </div>
+
             <!-- PHÂN VÙNG 1: CHẾ ĐỘ THUỐC -->
             <section id="section-thuoc">
                 <!-- NÚT CHỤP ẢNH THUỐC KHỔNG LỒ (1 CHẠM LÀ MỞ MÁY ẢNH / TỆP) -->
@@ -257,6 +268,24 @@
                 <div class="modal-header">
                     <h3>⚙️ Cài đặt trợ năng & Giọng đọc</h3>
                     <button id="btn-close-info" class="btn-close">✕</button>
+                </div>
+
+                <!-- CẤU HÌNH SERVER API (HỖ TRỢ GITHUB PAGES & CLOUDFLARE TUNNEL) -->
+                <div class="settings-group" style="background: rgba(37,99,235,0.06); padding: 12px; border-radius: 10px; border: 1px solid rgba(37,99,235,0.2);">
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+                        <span class="settings-label" style="margin: 0; font-weight: 700;">🌐 Địa chỉ Server API:</span>
+                        <span id="server-status-pill" style="font-size: 0.75rem; padding: 3px 8px; border-radius: 12px; background: #e5e7eb; color: #374151; font-weight: 600;">Đang kiểm tra...</span>
+                    </div>
+                    <div style="display: flex; gap: 8px;">
+                        <input type="url" id="server-url-input" placeholder="https://xxxx.trycloudflare.com hoặc IP VPS" 
+                               style="flex: 1; min-width: 0; padding: 8px 12px; border-radius: 8px; border: 1px solid #cbd5e1; font-size: 0.88rem; outline: none; background: var(--bg-card, #fff); color: inherit;">
+                        <button id="btn-save-server-url" type="button" style="white-space: nowrap; padding: 8px 14px; background: #2563eb; color: #fff; border: none; border-radius: 8px; font-weight: 600; cursor: pointer;">
+                            Lưu & Thử
+                        </button>
+                    </div>
+                    <div id="server-status-msg" style="font-size: 0.8rem; margin-top: 6px; color: #64748b;">
+                        Dán link từ <code>start_cloudflare.bat</code> hoặc VPS của bạn (Cần có <strong>https://</strong>).
+                    </div>
                 </div>
 
                 <!-- TỐC ĐỘ ĐỌC (ĐÃ CHUYỂN VÀO CÀI ĐẶT) -->

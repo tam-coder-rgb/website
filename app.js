@@ -7,8 +7,7 @@
  */
 
 document.addEventListener('DOMContentLoaded', async () => {
-    const SERVER_API_URL = "https://netscape-bride-lifetime-worship.trycloudflare.com ";
-    const client = new A11yMobileClient(SERVER_API_URL);
+    const client = new A11yMobileClient();
 
     // 1. CÁC MÀN HÌNH TRẠNG THÁI CHÍNH
     const actionScreen = document.getElementById('action-screen');
@@ -1153,6 +1152,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     // ==========================================================
     btnInfoToggle.addEventListener('click', () => {
         infoModal.style.display = 'flex';
+        checkAndDisplayServerStatus();
     });
 
     [btnCloseInfo, btnCloseInfoFooter].forEach(btn => {
@@ -1160,5 +1160,77 @@ document.addEventListener('DOMContentLoaded', async () => {
             infoModal.style.display = 'none';
         });
     });
+
+    // ==========================================================
+    // CẤU HÌNH & KIỂM TRA SERVER API (HỖ TRỢ GITHUB PAGES)
+    // ==========================================================
+    const serverUrlInput = document.getElementById('server-url-input');
+    const btnSaveServerUrl = document.getElementById('btn-save-server-url');
+    const serverStatusPill = document.getElementById('server-status-pill');
+    const serverStatusMsg = document.getElementById('server-status-msg');
+    const serverAlertBanner = document.getElementById('server-alert-banner');
+    const btnOpenServerConfig = document.getElementById('btn-open-server-config');
+
+    if (serverUrlInput) {
+        serverUrlInput.value = client.baseURL;
+    }
+
+    async function checkAndDisplayServerStatus() {
+        if (!serverStatusPill) return;
+        serverStatusPill.textContent = "Đang thử...";
+        serverStatusPill.style.background = "#fef3c7";
+        serverStatusPill.style.color = "#92400e";
+
+        const res = await client.checkHealth();
+        if (res.ok) {
+            serverStatusPill.textContent = "🟢 Đã kết nối";
+            serverStatusPill.style.background = "#dcfce7";
+            serverStatusPill.style.color = "#166534";
+            if (serverStatusMsg) {
+                serverStatusMsg.innerHTML = `Đang kết nối tới: <strong style="color: #16a34a;">${client.baseURL}</strong>`;
+            }
+            if (serverAlertBanner) {
+                serverAlertBanner.style.display = "none";
+            }
+        } else {
+            serverStatusPill.textContent = "🔴 Mất kết nối";
+            serverStatusPill.style.background = "#fee2e2";
+            serverStatusPill.style.color = "#991b1b";
+            if (serverStatusMsg) {
+                serverStatusMsg.innerHTML = `<span style="color: #dc2626;">Không kết nối được: ${res.detail || 'Lỗi mạng hoặc CORS'}.</span> Hãy chắc chắn server đang bật và link có https://`;
+            }
+            const isGitHubPages = window.location.hostname.endsWith('github.io');
+            if (isGitHubPages || client.baseURL.includes('localhost') || client.baseURL.includes('127.0.0.1')) {
+                if (serverAlertBanner) {
+                    serverAlertBanner.style.display = "flex";
+                }
+            }
+        }
+    }
+
+    if (btnSaveServerUrl) {
+        btnSaveServerUrl.addEventListener('click', async () => {
+            let url = (serverUrlInput.value || '').trim();
+            if (!url) {
+                url = window.location.origin;
+            }
+            if (!url.startsWith('http://') && !url.startsWith('https://')) {
+                url = 'https://' + url;
+                serverUrlInput.value = url;
+            }
+            client.setBaseURL(url);
+            await checkAndDisplayServerStatus();
+        });
+    }
+
+    if (btnOpenServerConfig) {
+        btnOpenServerConfig.addEventListener('click', () => {
+            infoModal.style.display = 'flex';
+            if (serverUrlInput) serverUrlInput.focus();
+        });
+    }
+
+    // Tự động kiểm tra kết nối ngay khi tải trang
+    setTimeout(checkAndDisplayServerStatus, 500);
 });
 

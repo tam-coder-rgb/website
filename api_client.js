@@ -4,8 +4,66 @@
  */
 
 class A11yMobileClient {
-    constructor(baseURL = window.location.origin) {
-        this.baseURL = baseURL.replace(/\/$/, '');
+    constructor(baseURL = null) {
+        if (!baseURL) {
+            // 1. Kiểm tra tham số ?server= trên thanh URL trình duyệt
+            try {
+                const urlParams = new URLSearchParams(window.location.search);
+                const serverFromParam = urlParams.get('server');
+                if (serverFromParam) {
+                    const cleanParam = serverFromParam.trim().replace(/\/$/, '');
+                    localStorage.setItem('MEDIDOCX_SERVER_URL', cleanParam);
+                    baseURL = cleanParam;
+                }
+            } catch (e) {
+                // Ignore
+            }
+
+            // 2. Kiểm tra trong bộ nhớ localStorage đã lưu trước đó
+            if (!baseURL) {
+                const saved = localStorage.getItem('MEDIDOCX_SERVER_URL');
+                if (saved) {
+                    baseURL = saved.trim().replace(/\/$/, '');
+                }
+            }
+
+            // 3. Mặc định dùng chính host hiện tại
+            if (!baseURL) {
+                baseURL = window.location.origin;
+            }
+        }
+        this.setBaseURL(baseURL);
+    }
+
+    setBaseURL(newURL) {
+        this.baseURL = (newURL || window.location.origin).trim().replace(/\/$/, '');
+        try {
+            localStorage.setItem('MEDIDOCX_SERVER_URL', this.baseURL);
+        } catch (e) {
+            // Ignore
+        }
+    }
+
+    /**
+     * Kiểm tra tình trạng kết nối tới Server
+     * @returns {Promise<{ok: boolean, status: string, detail?: string}>}
+     */
+    async checkHealth() {
+        try {
+            const controller = new AbortController();
+            const timer = setTimeout(() => controller.abort(), 4500);
+            const res = await fetch(`${this.baseURL}/api/health`, {
+                method: 'GET',
+                signal: controller.signal
+            });
+            clearTimeout(timer);
+            if (res.ok) {
+                return { ok: true, status: 'connected' };
+            }
+            return { ok: false, status: 'error', detail: `Mã lỗi HTTP ${res.status}` };
+        } catch (err) {
+            return { ok: false, status: 'unreachable', detail: err.message || 'Không thể kết nối' };
+        }
     }
 
     /**
