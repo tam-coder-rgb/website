@@ -7,7 +7,8 @@
  */
 
 document.addEventListener('DOMContentLoaded', async () => {
-    const client = new A11yMobileClient();
+    const SERVER_API_URL = "https://netscape-bride-lifetime-worship.trycloudflare.com ";
+    const client = new A11yMobileClient(SERVER_API_URL);
 
     // 1. CÁC MÀN HÌNH TRẠNG THÁI CHÍNH
     const actionScreen = document.getElementById('action-screen');
